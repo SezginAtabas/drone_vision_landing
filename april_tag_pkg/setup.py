@@ -1,5 +1,8 @@
 from setuptools import find_packages, setup
 
+import os
+import glob
+
 package_name = 'april_tag_pkg'
 
 setup(
@@ -10,6 +13,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        # get config files
+        (os.path.join('share', package_name, 'config'), glob.glob(os.path.join('config', '*.yaml'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
