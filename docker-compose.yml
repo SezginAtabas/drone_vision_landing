@@ -1,0 +1,16 @@
+
+services:
+  vision_container:
+    image: drone_vision_landing:latest
+    runtime: nvidia
+    privileged: true
+    ipc: host
+    pid: host
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY
+    volumes:
+      - /dev:/dev
+      - /tmp/.X11-unix/:/tmp/.X11-unix
+      - ./entrypoint.sh:/entrypoint.sh
+    entrypoint: ["/bin/bash", "-c", "/entrypoint.sh"]
