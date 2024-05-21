@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 import os
 import glob
 
-package_name = "april_tag_pkg"
+package_name = 'drone_follower_pkg'
 
 setup(
     name=package_name,
@@ -12,7 +12,10 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
-        # get config files
+        (
+            os.path.join("share", package_name, "launch"),
+            glob.glob(os.path.join("launch", "*launch.[pxy][yma]*")),
+        ),
         (
             os.path.join("share", package_name, "config"),
             glob.glob(os.path.join("config", "*.yaml")),
@@ -20,14 +23,14 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="sezgin_atabas",
+    maintainer="Sezgin Atabas",
     maintainer_email="atabassezgin@gmail.com",
     description="TODO: Package description",
     license="TODO: License declaration",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "april_tag_sender = april_tag_pkg.april_tag_sender:main",
+            "drone_follower_node = drone_follower_pkg.drone_follower_node:main"
         ],
     },
 )
