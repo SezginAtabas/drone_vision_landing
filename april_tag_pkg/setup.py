@@ -20,7 +20,7 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="sezgin_atabas",
+    maintainer="Sezgin_Atabas",
     maintainer_email="atabassezgin@gmail.com",
     description="TODO: Package description",
     license="TODO: License declaration",
@@ -28,6 +28,7 @@ setup(
     entry_points={
         "console_scripts": [
             "april_tag_sender = april_tag_pkg.april_tag_sender:main",
+            "pose_estimator = april_tag_pkg.pose_estimator:main",
         ],
     },
 )
