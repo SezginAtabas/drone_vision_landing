@@ -1,8 +1,7 @@
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Pose
-
-from typing import Union
+from scipy.spatial.transform import Rotation as R
+from typing import Union, List
 
 
 class Pose3D:
@@ -53,24 +52,6 @@ class Pose3D:
             raise ValueError("Argument must be an instance of Pose3D")
         return np.linalg.norm(self.position - other_pose.position)
 
-    def get_rotation_matrix(self) -> np.ndarray:
-        """Return the rotation matrix derived from the quaternion."""
-        return R.from_quat(self.quaternion).as_matrix()
-
-    def get_euler_angles(self) -> np.ndarray:
-        """Return the Euler angles (roll, pitch, yaw) derived from the quaternion."""
-        return R.from_quat(self.quaternion).as_euler("xyz")
-
-    def set_rotation_from_matrix(self, rotation_matrix: np.ndarray) -> None:
-        """Set the rotation using a rotation matrix."""
-        rotation = R.from_matrix(rotation_matrix)
-        self.quaternion = rotation.as_quat()
-
-    def set_rotation_from_euler(self, euler_angles: list[float]) -> None:
-        """Set the rotation using Euler angles."""
-        rotation = R.from_euler("xyz", euler_angles)
-        self.quaternion = rotation.as_quat()
-
     @classmethod
     def from_ros_message(
         cls, msg: Union[PoseStamped, PoseWithCovarianceStamped]
@@ -96,3 +77,18 @@ class Pose3D:
         time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
 
         return cls(position, quaternion, frame, time)
+
+    @classmethod
+    def solve_quat(
+        cls, quat_initial: np.ndarray, quat_target: np.ndarray
+    ) -> np.ndarray:
+        """Finds the quaternion that rotates one orientation to another.
+
+        Args:
+            quat_initial (_type_): _description_
+            quat_target (_type_): _description_
+
+        Returns:
+            rotation_quaternion: Quaternion that when applied to initial quaternion makes it equal to quaternion target.
+        """
+        return (R.from_quat(quat_target) * R.from_quat(quat_initial).inv()).as_quat()
