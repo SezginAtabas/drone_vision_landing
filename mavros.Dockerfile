@@ -6,7 +6,7 @@ FROM ${IMAGE_NAME}
 RUN pip install setuptools==58.2.0
 
 # copy the package
-COPY drone_follower_pkg /root/ros2_ws/src
+COPY drone_follower_pkg /root/ros2_ws/src/drone_follower_pkg
 
 # build the package
 WORKDIR /root/ros2_ws/

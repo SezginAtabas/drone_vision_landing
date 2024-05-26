@@ -12,7 +12,7 @@ services:
     entrypoint: ["/bin/bash", "-c", "/mavros_entrypoint.sh"]
 
   vision_container:
-    image: drone_vision_landing:latest
+    image: dronevisionlanding:latest
     runtime: nvidia
     privileged: true
     ipc: host

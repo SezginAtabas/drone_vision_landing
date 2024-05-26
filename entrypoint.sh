@@ -12,6 +12,9 @@ ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zedm publish_tf:=fals
 # wait for zed camera to fully start
 sleep 5
 
+# static publisher for position of the zed camera. 
+ros2 run tf2_ros static_transform_publisher --x 0.0 --y 0.98 --z 0.079 --roll 0.022 --pitch 0.073 --yaw 0.165 --frame-id base_link --child-frame-id zed_camera_link &
+
 # start the april_tag_sender node
 ros2 run april_tag_pkg april_tag_sender &
 

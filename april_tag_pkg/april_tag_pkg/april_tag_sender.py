@@ -15,10 +15,6 @@ class AprilTagSender(Node):
     def __init__(self):
         super().__init__('april_tag_sender')
         
-        self.last_img = None
-        self.last_camera_info = None
-        self.publish_rate = 50.0
-        
         self.img_sub = self.create_subscription(
             Image,
             '/zed/zed_node/left/image_rect_color',
@@ -45,8 +41,6 @@ class AprilTagSender(Node):
             MY_QOS
         )
         
-        self.sender = self.create_timer(1.0 / self.publish_rate, self.timer_callback)
-        
         # we need to convert zed images to bgr8 format before sending them.
         self.bridge = CvBridge()
     
@@ -59,19 +53,15 @@ class AprilTagSender(Node):
             # Convert back to ROS Image message
             ros_image = self.bridge.cv2_to_imgmsg(bgr8_image, encoding="bgr8")
             ros_image.header = msg.header
-            self.last_img = ros_image
             
         except Exception as e:
             self.get_logger().error(f'CvBridgeError: {e}')
+            
+        self.img_pub.publish(ros_image)
         
     def camera_info_callback(self, msg):
-        self.last_camera_info = msg
+        self.camera_info_pub.publish(msg)
 
-    def timer_callback(self):
-        if self.last_img and self.last_camera_info:
-            self.camera_info_pub.publish(self.last_camera_info)
-            self.img_pub.publish(self.last_img)
-    
 def main():
     rclpy.init()
     april_tag_sender = AprilTagSender()
