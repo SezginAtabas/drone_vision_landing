@@ -25,6 +25,12 @@ PUB_QOS = rclpy.qos.QoSProfile(
     durability=rclpy.qos.DurabilityPolicy.VOLATILE,
 )
 
+POSE_QOS = rclpy.qos.QoSProfile(
+    depth=10,
+    durability=rclpy.QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    reliability=rclpy.QoSReliabilityPolicy.RELIABLE,
+)
+
 
 class PoseEstimator(Node):
     def __init__(self):
@@ -99,7 +105,7 @@ class PoseEstimator(Node):
         self.drone_next_pos_pub = self.create_publisher(
             msg_type=PoseStamped,
             topic="/drone/next_drone_pose",
-            qos_profile=PUB_QOS,
+            qos_profile=POSE_QOS,
         )
 
         # tf2 buffer and listener.

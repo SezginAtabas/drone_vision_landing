@@ -59,7 +59,7 @@ class DroneFollowerNode(Node):
 
         # sub for pose target.
         self.pose_target_sub = self.create_subscription(
-            PoseStamped, "/drone/pose_target", self.pose_target_callback, TARGET_QOS
+            PoseStamped, "/drone/next_drone_pose", self.pose_target_callback, TARGET_QOS
         )
 
     def pose_target_callback(self, msg: PoseStamped):

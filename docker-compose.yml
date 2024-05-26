@@ -1,11 +1,23 @@
 
 services:
+  mavros_container:
+    image: dev:mavros2
+    privileged: true
+    ipc: host
+    pid: host
+    network_mode: host
+    volumes:
+      - /dev:/dev
+      - ./mavros_entrypoint.sh:/mavros_entrypoint.sh
+    entrypoint: ["/bin/bash", "-c", "/mavros_entrypoint.sh"]
+
   vision_container:
     image: drone_vision_landing:latest
     runtime: nvidia
     privileged: true
     ipc: host
     pid: host
+    network_mode: host
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY

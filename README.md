@@ -43,6 +43,15 @@ Install the required ROS 2 package for AprilTag detection:
 sudo apt-get install -y ros-humble-isaac-ros-apriltag
 ```
 
+You might need to change the DDS to cyclone for compability with other docker containers.
+```bash
+sudo apt update
+sudo apt install ros-humble-rmw-cyclonedds-cpp
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> ~/.bashrc
+source ~/.bashrc
+```
+
 ### 4. Run the Launch File
 
 Run the launch file to start the AprilTag detection. Adjust the launch parameters as needed for your setup. Example launch files can be found [here](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_apriltag/tree/main/isaac_ros_apriltag/launch). By default, the tag size is set to 0.22 and the tag family is 36h11.
