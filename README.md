@@ -45,9 +45,8 @@ sudo apt-get install -y ros-humble-isaac-ros-apriltag
 
 You might need to change the DDS to cyclone for compability with other docker containers.
 ```bash
-sudo apt update
-sudo apt install ros-humble-rmw-cyclonedds-cpp
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+sudo apt-get update
+sudo apt-get install -y ros-humble-rmw-cyclonedds-cpp
 echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -60,11 +59,15 @@ Run the launch file to start the AprilTag detection. Adjust the launch parameter
 ros2 launch isaac_ros_apriltag isaac_ros_apriltag.launch.py
 ```
 
-To view detections, open a second terminal inside the Docker container and run the following:
+To view detections, open a second terminal inside the Docker container using run_dev.sh script.
 
 ```bash
 cd ${ISAAC_ROS_WS}/src/isaac_ros_common
 ./scripts/run_dev.sh
 ```
 
+Then echo the messages sent to the /tag_detections topic
+```bash
+ros2 topic echo /tag_detections
+```
 ---

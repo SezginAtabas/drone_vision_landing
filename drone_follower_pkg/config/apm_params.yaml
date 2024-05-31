@@ -1,3 +1,3 @@
 mavros_node:
   ros__parameters:
-    fcu_url: "/dev/ttyACM0:921600"
+    fcu_url: "tcp://10.42.0.113:5762@"

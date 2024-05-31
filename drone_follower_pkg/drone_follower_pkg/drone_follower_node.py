@@ -25,6 +25,8 @@ class DroneFollowerNode(Node):
     def __init__(self):
         super().__init__("drone_follower_node")
 
+        self.in_air = False
+
         self.drone_state_messages = []
         # create service clients
         # for long command (data stream requests)...
@@ -62,11 +64,16 @@ class DroneFollowerNode(Node):
             PoseStamped, "/drone/next_drone_pose", self.pose_target_callback, TARGET_QOS
         )
 
+        self.setup_for_flight()
+        self.takeoff(target_alt=1.5)
+        self.in_air = True  # wait for takeoff to finish to send movement commands
+
     def pose_target_callback(self, msg: PoseStamped):
-        self.get_logger().info(
-            f"moving to {msg.pose.position} with {msg.pose.orientation}"
-        )
-        self.target_pub.publish(msg)
+        if self.in_air:
+            self.get_logger().info(
+                f"moving to {msg.pose.position} with {msg.pose.orientation}"
+            )
+            self.target_pub.publish(msg)
 
     def state_callback(self, msg: State):
         self.drone_state_messages.append(msg)
@@ -217,8 +224,6 @@ class DroneFollowerNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     drone_follower_node = DroneFollowerNode()
-    DroneFollowerNode.setup_for_flight()
-    DroneFollowerNode.takeoff(target_alt=1.5)
     rclpy.spin(drone_follower_node)
     drone_follower_node.destroy_node()
     rclpy.shutdown()
