@@ -1,73 +1,53 @@
 
-
----
-
 # drone_vision_landing
 
-Visual Landing and Target Following Using AprilTags
+**Visual Landing and Target Following Using AprilTags**
 
 ## Overview
 
-This project focuses on visual landing and target following using AprilTags. The detection is performed using the [Isaac ROS AprilTag](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_apriltag) package on an NVIDIA Jetson platform.
+`drone_vision_landing` is a project designed for visual landing and target tracking applications using drones, specifically employing AprilTags for precise localization. It's been thoroughly tested on a QuadCopter equipped with CubeOrange running ArduPilot 4.5 firmware.
 
-## Apriltag Detection Setup
+### Hardware Requirements:
+- **NVIDIA Jetson** (as a companion computer)
+- **Stereolabs ZED Camera** - Compatible models include [ZED, ZED Mini, ZED 2](https://www.stereolabs.com/).
 
-Follow these steps to set up AprilTag detection:
+### Software Dependencies:
+- [MAVROS](https://github.com/mavlink/mavros) for communication between ROS and the ArduPilot flight stack.
+- [Isaac ROS AprilTag](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_apriltag) for AprilTag detection.
+- [ZED ROS2 Wrapper](https://github.com/stereolabs/zed-ros2-wrapper) to integrate the ZED cameras with ROS2.
+- [Docker](https://www.docker.com/) for containerization.
+- [ROS2 Humble](https://docs.ros.org/en/humble/index.html) as the ROS2 distribution.
 
-### 1. Set Up Isaac ROS Environment
+## Installation Guide
 
-First, set up the Isaac ROS environment by following the instructions [here](https://nvidia-isaac-ros.github.io/getting_started/dev_env_setup.html).
+### 1. Set Up Docker
+Install Docker on your system by following these [instructions](https://docs.docker.com/get-docker/).
 
-Clone the necessary repositories into your workspace:
+### 2. Configure Isaac for AprilTag Detection
+Detailed setup instructions are available [here](https://github.com/SezginAtabas/drone_vision_landing/blob/master/isaac_setup.md).
 
+### 3. Clone the Repository
 ```bash
-cd ${ISAAC_ROS_WS}/src
-git clone https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common.git
-git clone https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_apriltag.git
+git clone https://github.com/SezginAtabas/drone_vision_landing.git
 ```
 
-### 2. Customize and Run the Docker Image
+### 4. Configure the Parameters
+Adjust the MAVROS and camera parameters to fit your hardware setup:
+- Modify the `fcu_url` in MAVROS as detailed [here](https://github.com/mavlink/mavros/blob/master/mavros/README.md#installation).
+- Update the `camera_model` parameter in the [entrypoint script](https://github.com/SezginAtabas/drone_vision_landing/blob/master/entrypoint.sh) to ensure the ZED node launches with the correct camera model.
 
-Customize the Docker image according to your setup by following the guide [here](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_common/index.html). Then, run the Docker container:
-
+### 5. Start the Project Using Docker Compose
+Launch the application containers:
 ```bash
-cd ${ISAAC_ROS_WS}/src/isaac_ros_common
-./scripts/run_dev.sh
+docker compose up
 ```
 
-### 3. Install Dependencies
+### 6. Create and Print an AprilTag
+If you haven't already, generate and print an AprilTag from [this generator](https://chev.me/arucogen/).
 
-Install the required ROS 2 package for AprilTag detection:
+## Disclaimer
 
-```bash
-sudo apt-get install -y ros-humble-isaac-ros-apriltag
-```
+This project is provided for educational and research purposes only. Users are responsible for ensuring they comply with local laws and regulations, particularly those concerning the operation of drones in public or private airspace. The authors of this project are not liable for any damage or legal issues that arise from the use of this software. Always test in controlled environments and ensure that you have appropriate safety measures in place. Use at your own risk.
 
-You might need to change the DDS to cyclone for compability with other docker containers.
-```bash
-sudo apt-get update
-sudo apt-get install -y ros-humble-rmw-cyclonedds-cpp
-echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> ~/.bashrc
-source ~/.bashrc
-```
-
-### 4. Run the Launch File
-
-Run the launch file to start the AprilTag detection. Adjust the launch parameters as needed for your setup. Example launch files can be found [here](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_apriltag/tree/main/isaac_ros_apriltag/launch). By default, the tag size is set to 0.22 and the tag family is 36h11.
-
-```bash
-ros2 launch isaac_ros_apriltag isaac_ros_apriltag.launch.py
-```
-
-To view detections, open a second terminal inside the Docker container using run_dev.sh script.
-
-```bash
-cd ${ISAAC_ROS_WS}/src/isaac_ros_common
-./scripts/run_dev.sh
-```
-
-Then echo the messages sent to the /tag_detections topic
-```bash
-ros2 topic echo /tag_detections
-```
 ---
+
