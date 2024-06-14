@@ -41,7 +41,7 @@ class PoseEstimator(Node):
         )
 
         # We need to sync apriltag messages with drone local position messages.
-        # NOTE: Current slop in ApproximateTimeSynchronizer is for testing could be lower.
+        # NOTE: Current slop in ApproximateTimeSynchronizer is for testing slop could be lower.
         apriltag_sub = Subscriber(self, AprilTagDetectionArray, "/tag_detections")
         drone_sub = Subscriber(
             self,
@@ -49,9 +49,9 @@ class PoseEstimator(Node):
             "/mavros/local_position/pose",
             qos_profile=LOCAL_QOS,
         )
-        ats = ApproximateTimeSynchronizer([apriltag_sub, drone_sub], 10, 0.05)
+        ats = ApproximateTimeSynchronizer(fs=[apriltag_sub, drone_sub], queue_size= 10, slop=0.05)
         ats.registerCallback(self.next_pose_callback)
-
+        
     def initialize_parameters(self):
         """
         The `initialize_parameters` function initializes parameters for a drone's follow behavior, including
@@ -60,14 +60,6 @@ class PoseEstimator(Node):
 
         self.declare_parameter("base_link_frame", "base_link")
         self.declare_parameter("camera_frame", "zed_camera_link")
-        self.declare_parameter("drone_follow_altitude", 3.0)
-
-        self.drone_follow_displacement = np.array([0.0, 0.0, 0.0])
-        self.drone_alt_param = (
-            self.get_parameter("drone_follow_altitude")
-            .get_parameter_value()
-            .double_value
-        )
         self.base_link_frame = (
             self.get_parameter("base_link_frame").get_parameter_value().string_value
         )
@@ -122,7 +114,7 @@ class PoseEstimator(Node):
             [[pose.position.x, pose.position.y, pose.position.z] for pose in tag_poses]
         )
         tag_mean_position = (
-            np.mean(tag_positions, axis=0) + self.drone_follow_displacement
+            np.mean(tag_positions, axis=0)
         )
 
         msg_to_pub = PoseStamped()

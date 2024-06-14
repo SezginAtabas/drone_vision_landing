@@ -25,8 +25,7 @@ class DroneFollowerNode(Node):
     def __init__(self):
         super().__init__("drone_follower_node")
 
-        self.in_air = False
-
+        self.initialize_parameters()
         self.drone_state_messages = []
         # create service clients
         # for long command (data stream requests)...
@@ -68,7 +67,32 @@ class DroneFollowerNode(Node):
         self.takeoff(target_alt=1.5)
         self.in_air = True  # wait for takeoff to finish to send movement commands
 
+    def initialize_parameters(self):
+        """
+        This function initializes parameters for drone's follow behavior.
+        """
+
+        self.declare_parameter(
+            name="drone_follow_pos_displacement",
+            value=[0.0, 0.0, 3.0],
+            descriptor="[x, y, z] position difference of the drone when following the target. Uses ENU coordinate frame convention.",
+        )
+
+        self.drone_follow_pos_displacement = self.get_parameter(
+            "drone_follow_pos_displacement"
+        )
+
     def pose_target_callback(self, msg: PoseStamped):
+        """
+        Calculate the next pose of the drone using apriltag poses.
+
+        Args:
+            msg: Mean Pose of the detected apriltags relative to the drone. This pose data is in 'base_link' frame.
+        """
+        msg.pose.position.x += self.drone_follow_pos_displacement[0]
+        msg.pose.position.y += self.drone_follow_pos_displacement[1]
+        msg.pose.position.z += self.drone_follow_pos_displacement[2]
+
         if self.in_air:
             self.get_logger().info(
                 f"moving to {msg.pose.position} with {msg.pose.orientation}"
