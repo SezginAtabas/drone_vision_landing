@@ -22,7 +22,22 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY
     volumes:
-      - /dev:/dev
-      - /tmp/.X11-unix/:/tmp/.X11-unix
+      # Entrypoint script for the vision container
       - ./entrypoint.sh:/entrypoint.sh
+       # Share video devices with the container
+      - /dev:/dev
+      # For X11 display
+      - /tmp/.X11-unix/:/tmp/.X11-unix # for x11
+      # we need this to run zed camera in areas without internet connection.
+      # To learn more: https://support.stereolabs.com/hc/en-us/articles/21614848880791-How-can-I-use-the-ZED-with-Docker-on-a-robot-with-no-internet-connection
+      - /usr/local/zed/settings:/usr/local/zed/settings 
+      # We need this to use zed ai modules (object detection, neural depth etc)
+      - /usr/local/zed/resources:/usr/local/zed/resources
+      - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/
+
+      # for GMSL cameras (zed x, zed x mini) you need the following
+      #- /tmp:/tmp
+      #- /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
+      #- /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
+
     entrypoint: ["/bin/bash", "-c", "/entrypoint.sh"]
