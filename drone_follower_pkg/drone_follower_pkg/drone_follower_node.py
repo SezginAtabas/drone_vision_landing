@@ -25,9 +25,73 @@ class DroneFollowerNode(Node):
     def __init__(self):
         super().__init__("drone_follower_node")
 
+        # initialize parameters and publishers/subscribers/services
         self.initialize_parameters()
+        self.initialize_publishers()
+        self.initialize_subscribers()
+        self.initialize_services()
+
+        # get the drone ready for flight (mode change, arming etc)
+        self.setup_for_flight()
+        self.takeoff(target_alt=1.5)
+        self.in_air_start_time = (
+            self.get_clock().now()
+        )  # Get time when drone is in the air used to keep track of flight duration
+        self.in_air = True  # wait for takeoff to finish to send movement commands
+
+        # create timer for flight duration check
+        self.create_timer(1.0, self.check_flight_duration)  # Check every second
+
+    def initialize_parameters(self):
+        """
+        This function initializes parameters for drone's follow behavior.
+        """
+
+        self.declare_parameter(
+            name="flight_duration",
+            value=60.0,
+        ).get_parameter_value().integer_value
+
+
+        self.drone_flight_duration = (
+            self.get_parameter("flight_duration").get_parameter_value().integer_value
+        )
+
+        self.in_air = False
+        self.should_land = False
+        self.in_air_start_time = None
         self.drone_state_messages = []
-        # create service clients
+
+    def initialize_subscribers(self):
+        """
+        This function initializes subscribers for drone's follow behavior.
+        """
+
+        # sub for vehicle state
+        self.state_sub = self.create_subscription(
+            State, "/mavros/state", self.state_callback, STATE_QOS
+        )
+
+        # sub for pose target.
+        self.pose_target_sub = self.create_subscription(
+            PoseStamped, "/drone/next_drone_pose", self.pose_target_callback, TARGET_QOS
+        )
+
+    def initialize_publishers(self):
+        """
+        This function initializes publishers for drone's follow behavior.
+        """
+
+        # publisher for setpoint messages that are used to move the drone
+        self.target_pub = self.create_publisher(
+            PoseStamped, "/mavros/setpoint_position/local", 10
+        )
+
+    def initialize_services(self):
+        """
+        This function initializes services for drone's follow behavior.
+        """
+
         # for long command (data stream requests)...
         self.cmd_cli = self.create_client(CommandLong, "/mavros/cmd/command")
         while not self.cmd_cli.wait_for_service(timeout_sec=1.0):
@@ -48,40 +112,6 @@ class DroneFollowerNode(Node):
         while not self.takeoff_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("takeoff service not available, waiting again...")
 
-        # publisher for setpoint messages that are used to move the drone
-        self.target_pub = self.create_publisher(
-            PoseStamped, "/mavros/setpoint_position/local", 10
-        )
-
-        # sub for vehicle state
-        self.state_sub = self.create_subscription(
-            State, "/mavros/state", self.state_callback, STATE_QOS
-        )
-
-        # sub for pose target.
-        self.pose_target_sub = self.create_subscription(
-            PoseStamped, "/drone/next_drone_pose", self.pose_target_callback, TARGET_QOS
-        )
-
-        self.setup_for_flight()
-        self.takeoff(target_alt=1.5)
-        self.in_air = True  # wait for takeoff to finish to send movement commands
-
-    def initialize_parameters(self):
-        """
-        This function initializes parameters for drone's follow behavior.
-        """
-
-        self.declare_parameter(
-            name="drone_follow_pos_displacement",
-            value=[0.0, 0.0, 3.0],
-            descriptor="[x, y, z] position difference of the drone when following the target. Uses ENU coordinate frame convention.",
-        )
-
-        self.drone_follow_pos_displacement = self.get_parameter(
-            "drone_follow_pos_displacement"
-        )
-
     def pose_target_callback(self, msg: PoseStamped):
         """
         Calculate the next pose of the drone using apriltag poses.
@@ -89,15 +119,37 @@ class DroneFollowerNode(Node):
         Args:
             msg: Mean Pose of the detected apriltags relative to the drone. This pose data is in 'base_link' frame.
         """
-        msg.pose.position.x += self.drone_follow_pos_displacement[0]
-        msg.pose.position.y += self.drone_follow_pos_displacement[1]
-        msg.pose.position.z += self.drone_follow_pos_displacement[2]
+
+        if self.should_land:
+            return
+
+        msg.pose.position.x += 0.0
+        msg.pose.position.y += 0.0
+        msg.pose.position.z += 3.0
 
         if self.in_air:
             self.get_logger().info(
                 f"moving to {msg.pose.position} with {msg.pose.orientation}"
             )
             self.target_pub.publish(msg)
+
+    def check_flight_duration(self):
+        """
+        Check if the flight duration has elapsed. If so, send a land command.
+        """
+
+        if (
+            self.get_clock().now() - self.in_air_start_time
+        ).nanoseconds / 1e9 > self.drone_flight_duration:
+            self.get_logger().info("Flight duration elapsed. Sending land command.")
+            self.should_land = True
+            self.land()
+
+    def land(self):
+        """
+        Changes mode to land.
+        """
+        self.change_mode("LAND")
 
     def state_callback(self, msg: State):
         self.drone_state_messages.append(msg)
