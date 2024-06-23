@@ -49,17 +49,19 @@ class DroneFollowerNode(Node):
 
         self.declare_parameter(
             name="flight_duration",
-            value=60.0,
+            value=60,
         ).get_parameter_value().integer_value
-
 
         self.drone_flight_duration = (
             self.get_parameter("flight_duration").get_parameter_value().integer_value
         )
 
+        self.get_logger().info(
+            "Drone will fly for %d seconds before landing" % self.drone_flight_duration
+        )
+
         self.in_air = False
         self.should_land = False
-        self.in_air_start_time = None
         self.drone_state_messages = []
 
     def initialize_subscribers(self):
@@ -138,12 +140,17 @@ class DroneFollowerNode(Node):
         Check if the flight duration has elapsed. If so, send a land command.
         """
 
-        if (
-            self.get_clock().now() - self.in_air_start_time
-        ).nanoseconds / 1e9 > self.drone_flight_duration:
+        self.drone_flight_duration -= 1
+
+        if self.drone_flight_duration <= 0:
             self.get_logger().info("Flight duration elapsed. Sending land command.")
             self.should_land = True
             self.land()
+            return
+
+        self.get_logger().info(
+            f"Flight duration remaining: {self.drone_flight_duration} seconds."
+        )
 
     def land(self):
         """

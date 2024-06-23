@@ -4,10 +4,10 @@
 source /opt/ros/humble/install/setup.bash && source /root/ros2_ws/install/local_setup.bash 
 
 # Wait for mavros to setup connection
-#sleep 30
+sleep 30
 
 # static publisher for position of the zed camera. 
-#ros2 run tf2_ros static_transform_publisher --x 0.0 --y 0.98 --z 0.079 --roll 0.022 --pitch 0.073 --yaw 0.165 --frame-id base_link --child-frame-id zed_camera_link &
+ros2 run tf2_ros static_transform_publisher --x 0.0 --y 0.98 --z 0.079 --roll 0.022 --pitch 0.073 --yaw 0.165 --frame-id base_link --child-frame-id zed_camera_link &
 
 sleep 1
 
