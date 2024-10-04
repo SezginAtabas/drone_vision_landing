@@ -1,4 +1,3 @@
-
 services:
   mavros_container:
     image: dev:mavros2
@@ -9,7 +8,7 @@ services:
     volumes:
       - /dev:/dev
       - ./mavros_entrypoint.sh:/mavros_entrypoint.sh
-    entrypoint: ["/bin/bash", "-c", "/mavros_entrypoint.sh"]
+    entrypoint: [ "/bin/bash", "-c", "/mavros_entrypoint.sh" ]
 
   vision_container:
     image: dronevisionlanding:latest
@@ -24,13 +23,13 @@ services:
     volumes:
       # Entrypoint script for the vision container
       - ./entrypoint.sh:/entrypoint.sh
-       # Share video devices with the container
+      # Share video devices with the container
       - /dev:/dev
       # For X11 display
       - /tmp/.X11-unix/:/tmp/.X11-unix # for x11
       # we need this to run zed camera in areas without internet connection.
       # To learn more: https://support.stereolabs.com/hc/en-us/articles/21614848880791-How-can-I-use-the-ZED-with-Docker-on-a-robot-with-no-internet-connection
-      - /usr/local/zed/settings:/usr/local/zed/settings 
+      - /usr/local/zed/settings:/usr/local/zed/settings
       # We need this to use zed ai modules (object detection, neural depth etc)
       - /usr/local/zed/resources:/usr/local/zed/resources
       - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/
@@ -40,4 +39,4 @@ services:
       #- /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       #- /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
 
-    entrypoint: ["/bin/bash", "-c", "/entrypoint.sh"]
+    entrypoint: [ "/bin/bash", "-c", "/entrypoint.sh" ]

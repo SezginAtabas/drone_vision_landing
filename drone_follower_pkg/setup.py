@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 import os
 import glob
 
-package_name = 'drone_follower_pkg'
+package_name = "drone_follower_pkg"
 
 setup(
     name=package_name,

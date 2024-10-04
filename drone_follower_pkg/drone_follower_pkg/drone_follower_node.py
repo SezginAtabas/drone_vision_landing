@@ -10,7 +10,6 @@ from geometry_msgs.msg import PoseStamped
 from mavros_msgs.msg import State
 from mavros_msgs.srv import SetMode, CommandLong, CommandTOL, CommandBool
 
-
 # STATE_QOS used for state topics, like ~/state, ~/mission/waypoints etc.
 STATE_QOS = QoSProfile(depth=5, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
 
@@ -96,23 +95,12 @@ class DroneFollowerNode(Node):
 
         # for long command (data stream requests)...
         self.cmd_cli = self.create_client(CommandLong, "/mavros/cmd/command")
-        while not self.cmd_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("command service not available, waiting again...")
-
         # for mode changes ...
         self.mode_cli = self.create_client(SetMode, "/mavros/set_mode")
-        while not self.mode_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("set_mode service not available, waiting again...")
-
         # for arming ...
         self.arm_cli = self.create_client(CommandBool, "/mavros/cmd/arming")
-        while not self.arm_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("arming service not available, waiting again...")
-
         # for takeoff
         self.takeoff_cli = self.create_client(CommandTOL, "/mavros/cmd/takeoff")
-        while not self.takeoff_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("takeoff service not available, waiting again...")
 
     def pose_target_callback(self, msg: PoseStamped):
         """
