@@ -5,7 +5,6 @@ from rclpy.qos import (
     QoSDurabilityPolicy,
     QoSReliabilityPolicy,
 )
-
 from geometry_msgs.msg import PoseStamped
 from mavros_msgs.msg import State
 from mavros_msgs.srv import SetMode, CommandLong, CommandTOL, CommandBool
@@ -24,28 +23,10 @@ class DroneFollowerNode(Node):
     def __init__(self):
         super().__init__("drone_follower_node")
 
-        # initialize parameters and publishers/subscribers/services
-        self.initialize_parameters()
-        self.initialize_publishers()
-        self.initialize_subscribers()
-        self.initialize_services()
+        #  <------ initialize parameters ------>
 
-        # get the drone ready for flight (mode change, arming etc)
-        self.setup_for_flight()
-        self.takeoff(target_alt=1.5)
-        self.in_air_start_time = (
-            self.get_clock().now()
-        )  # Get time when drone is in the air used to keep track of flight duration
-        self.in_air = True  # wait for takeoff to finish to send movement commands
-
-        # create timer for flight duration check
-        self.create_timer(1.0, self.check_flight_duration)  # Check every second
-
-    def initialize_parameters(self):
-        """
-        This function initializes parameters for drone's follow behavior.
-        """
-
+        # flight duration of the drone in seconds.
+        # drone will start the landing sequence when this value is exceeded
         self.declare_parameter(
             name="flight_duration",
             value=60,
@@ -59,39 +40,22 @@ class DroneFollowerNode(Node):
             "Drone will fly for %d seconds before landing" % self.drone_flight_duration
         )
 
-        self.in_air = False
-        self.should_land = False
-        self.drone_state_messages = []
+        # <------ Publishers and Subscribers ------>
 
-    def initialize_subscribers(self):
-        """
-        This function initializes subscribers for drone's follow behavior.
-        """
-
+        # publisher for set-point messages that are used to move the drone
+        self.target_pub = self.create_publisher(
+            PoseStamped, "/mavros/setpoint_position/local", 10
+        )
         # sub for vehicle state
         self.state_sub = self.create_subscription(
             State, "/mavros/state", self.state_callback, STATE_QOS
         )
-
         # sub for pose target.
         self.pose_target_sub = self.create_subscription(
             PoseStamped, "/drone/next_drone_pose", self.pose_target_callback, TARGET_QOS
         )
 
-    def initialize_publishers(self):
-        """
-        This function initializes publishers for drone's follow behavior.
-        """
-
-        # publisher for setpoint messages that are used to move the drone
-        self.target_pub = self.create_publisher(
-            PoseStamped, "/mavros/setpoint_position/local", 10
-        )
-
-    def initialize_services(self):
-        """
-        This function initializes services for drone's follow behavior.
-        """
+        # <------ Create clients ------>
 
         # for long command (data stream requests)...
         self.cmd_cli = self.create_client(CommandLong, "/mavros/cmd/command")
@@ -101,6 +65,24 @@ class DroneFollowerNode(Node):
         self.arm_cli = self.create_client(CommandBool, "/mavros/cmd/arming")
         # for takeoff
         self.takeoff_cli = self.create_client(CommandTOL, "/mavros/cmd/takeoff")
+
+        # Create some variables to keep track of the drone.
+        self.in_air = False
+        self.should_land = False
+        self.drone_state_messages = []
+        self.in_air_start_time = None
+        self.ready_for_takeoff = False
+
+        # get the drone ready for flight (mode change, arming etc.)
+        self.setup_for_flight()
+        self.takeoff(target_alt=1.5)
+        self.in_air_start_time = (
+            self.get_clock().now()
+        )  # Get time when drone is in the air used to keep track of flight duration
+        self.in_air = True  # wait for takeoff to finish to send movement commands
+
+        # create timer to check flight duration every second.
+        self.create_timer(1.0, self.check_flight_duration)
 
     def pose_target_callback(self, msg: PoseStamped):
         """
@@ -156,7 +138,7 @@ class DroneFollowerNode(Node):
         Args:
             timeout: seconds wait at each step until timeout. default 30.
             wait_for_standby: whether to wait for standby or not. Defaults to 30.
-            tries: How many times the function tries to setup.
+            tries: How many times the function tries to set up.
         """
 
         # request all needed messages
@@ -193,6 +175,7 @@ class DroneFollowerNode(Node):
             last_state = self.drone_state_messages[-1]
 
             if last_state.armed and last_state.guided:
+                self.ready_for_takeoff = True
                 self.get_logger().info("Drone is ready for flight")
                 return True
 
@@ -205,7 +188,7 @@ class DroneFollowerNode(Node):
     def wait_for_new_state_message(self, timeout=30):
         """
         Wait for new state message to be received.  These are sent at
-        1Hz so calling this is roughly equivalent to one second delay.
+        1Hz so calling this is roughly equivalent to one-second delay.
 
         Args:
             timeout: Seconds to wait until timeout.
@@ -235,7 +218,8 @@ class DroneFollowerNode(Node):
         self.request_data_stream(27, msg_interval)
 
     def request_data_stream(self, msg_id, msg_interval):
-        """Request data stream from the vehicle. Otherwise in some cases (e.g. when using ardupilot sitl), the vehicle will not send any data to mavros.
+        """Request data stream from the vehicle. Otherwise, the flight controller
+        may not send any data at all (e.g. when using ardupilot sitl).
 
         message ids: https://mavlink.io/en/messages/common.html
 
@@ -280,24 +264,50 @@ class DroneFollowerNode(Node):
         future = self.arm_cli.call_async(arm_req)
         rclpy.spin_until_future_complete(self, future)
 
-    def takeoff(self, target_alt):
+    def takeoff(self, target_alt: float = 3.0) -> bool:
         """Takeoff to the target altitude
 
         Args:
-            target_alt: target altitude.
+            target_alt (float): target altitude the drone will fly to when taking off. In meters.
+
+        Returns:
+            True if successful, False otherwise.
+
         """
+        if self.in_air:
+            self.get_logger().error("Could not takeoff! Drone is already in the air.")
+            return False
+
+        if not self.ready_for_takeoff:
+            self.get_logger().error("Drone is not ready for takeoff.")
+            return False
+
         takeoff_req = CommandTOL.Request()
         takeoff_req.altitude = float(target_alt)
         future = self.takeoff_cli.call_async(takeoff_req)
-        return rclpy.spin_until_future_complete(self, future)
+        rclpy.spin_until_future_complete(self, future)
+
+        # wait until takeoff is completed
+        self.in_air = True
+        self.in_air_start_time = self.get_clock().now()
+        return True
 
 
 def main(args=None):
     rclpy.init(args=args)
     drone_follower_node = DroneFollowerNode()
-    rclpy.spin(drone_follower_node)
-    drone_follower_node.destroy_node()
-    rclpy.shutdown()
+
+    try:
+        drone_follower_node.setup_for_flight()
+        drone_follower_node.takeoff()
+        rclpy.spin(drone_follower_node)
+    except KeyboardInterrupt:
+        print(f"Keyboard interrupt detected. Shutting down")
+    except Exception as e:
+        print(f"Exception occurred while spinning the node - {e}")
+    finally:
+        drone_follower_node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
