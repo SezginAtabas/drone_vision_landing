@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.time import Time
 from rclpy.qos import (
     QoSProfile,
     QoSDurabilityPolicy,
@@ -7,7 +8,13 @@ from rclpy.qos import (
 )
 from geometry_msgs.msg import PoseStamped
 from mavros_msgs.msg import State
-from mavros_msgs.srv import SetMode, CommandLong, CommandTOL, CommandBool
+from mavros_msgs.srv import (
+    SetMode,
+    CommandLong,
+    CommandTOL,
+    CommandBool,
+    MessageInterval,
+)
 
 # STATE_QOS used for state topics, like ~/state, ~/mission/waypoints etc.
 STATE_QOS = QoSProfile(depth=5, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
@@ -32,8 +39,10 @@ class DroneFollowerNode(Node):
             value=60,
         ).get_parameter_value().integer_value
 
-        self.drone_flight_duration = (
-            self.get_parameter("flight_duration").get_parameter_value().integer_value
+        self.drone_flight_duration = Time(
+            seconds=self.get_parameter("flight_duration")
+            .get_parameter_value()
+            .integer_value
         )
 
         self.get_logger().info(
@@ -65,6 +74,10 @@ class DroneFollowerNode(Node):
         self.arm_cli = self.create_client(CommandBool, "/mavros/cmd/arming")
         # for takeoff
         self.takeoff_cli = self.create_client(CommandTOL, "/mavros/cmd/takeoff")
+        # to set interval between received MavLink messages
+        self.message_interval_cli = self.create_client(
+            MessageInterval, "/mavros/set_message_interval"
+        )
 
         # Create some variables to keep track of the drone.
         self.in_air = False
@@ -73,13 +86,17 @@ class DroneFollowerNode(Node):
         self.in_air_start_time = None
         self.ready_for_takeoff = False
 
-        # get the drone ready for flight (mode change, arming etc.)
-        self.setup_for_flight()
-        self.takeoff(target_alt=1.5)
-        self.in_air_start_time = (
-            self.get_clock().now()
-        )  # Get time when drone is in the air used to keep track of flight duration
-        self.in_air = True  # wait for takeoff to finish to send movement commands
+        # MavLink messages to request from the drone flight controller.
+        # These are drone position, attitude etc. And are requested using
+        # set_all_message_interval function which makes async calls to
+        # /mavros/set_message_interval service.
+        # Message id, Interval in microseconds
+        self.messages_to_request = (
+            (32, 100000),  # local position
+            (33, 100000),  # global position
+            (24, 100000),  # gps raw
+            (27, 100000),  # raw imu
+        )
 
         # create timer to check flight duration every second.
         self.create_timer(1.0, self.check_flight_duration)
@@ -97,6 +114,7 @@ class DroneFollowerNode(Node):
 
         msg.pose.position.x += 0.0
         msg.pose.position.y += 0.0
+        # drone attitude to follow the target with in meters
         msg.pose.position.z += 3.0
 
         if self.in_air:
@@ -110,9 +128,10 @@ class DroneFollowerNode(Node):
         Check if the flight duration has elapsed. If so, send a land command.
         """
 
-        self.drone_flight_duration -= 1
+        if not self.in_air or self.in_air_start_time is None:
+            return
 
-        if self.drone_flight_duration <= 0:
+        if self.get_clock().now() - self.in_air_start_time > self.drone_flight_duration:
             self.get_logger().info("Flight duration elapsed. Sending land command.")
             self.should_land = True
             self.land()
@@ -142,7 +161,7 @@ class DroneFollowerNode(Node):
         """
 
         # request all needed messages
-        self.request_needed()
+        self.set_all_message_interval()
 
         for i in range(tries):
             if wait_for_standby:
@@ -200,41 +219,33 @@ class DroneFollowerNode(Node):
             if len(self.drone_state_messages) > start_len:
                 break
 
-    def request_needed(self, msg_interval=100000):
-        """Requests all needed messages from the fcu.
-            uses request_data_stream function.
-
-        Args:
-            msg_interval: message send interval in microseconds. applies to all data streams called by the function.
+    def set_all_message_interval(self) -> None:
         """
+        Requests data from the drone flight controller in the form of MavLink messages.
+        Requested messages will be sent at periodic intervals, which are then processed by
+        mavros and published to topics. This function makes async calls to "/mavros/set_message_interval service"
+        to request these messages. Which then sends a MAV_CMD_SET_MESSAGE_INTERVAL commands to the drone.
 
-        # local position
-        self.request_data_stream(32, msg_interval)
-        # global position
-        self.request_data_stream(33, msg_interval)
-        # gps raw
-        self.request_data_stream(24, msg_interval)
-        # raw imu
-        self.request_data_stream(27, msg_interval)
+        MavLink message ids can be found here: https://mavlink.io/en/messages/common.html
 
-    def request_data_stream(self, msg_id, msg_interval):
-        """Request data stream from the vehicle. Otherwise, the flight controller
-        may not send any data at all (e.g. when using ardupilot sitl).
-
-        message ids: https://mavlink.io/en/messages/common.html
-
-        Args:
-            msg_id: MAVLink message ID
-            msg_interval: interval in microseconds
+        Returns:
+            None
         """
+        for msg_id, msg_interval in self.messages_to_request:
+            cmd = MessageInterval.Request()
+            cmd.message_id = msg_id
+            cmd.message_rate = msg_interval
+            future = self.message_interval_cli.call_async(cmd)
+            rclpy.spin_until_future_complete(self, future)
 
-        cmd_req = CommandLong.Request()
-        cmd_req.command = 511
-        cmd_req.param1 = float(msg_id)
-        cmd_req.param2 = float(msg_interval)
-        future = self.cmd_cli.call_async(cmd_req)
-        # wait for response
-        rclpy.spin_until_future_complete(self, future)
+            if future.result() is not None:
+                self.get_logger().info(
+                    f"Set message interval result for msg with id:{msg_id} - {future.result()}"
+                )
+            else:
+                self.get_logger().error(
+                    f"Failed to call set_message_interval service for msg with id:{msg_id}"
+                )
 
     def change_mode(self, new_mode):
         """Changes the mode of the drone.
