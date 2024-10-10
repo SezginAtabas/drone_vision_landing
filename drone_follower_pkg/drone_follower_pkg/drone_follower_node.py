@@ -5,6 +5,7 @@ from rclpy.qos import (
     QoSProfile,
     QoSDurabilityPolicy,
     QoSReliabilityPolicy,
+    qos_profile_sensor_data,
 )
 from geometry_msgs.msg import PoseStamped
 from mavros_msgs.msg import State
@@ -14,15 +15,6 @@ from mavros_msgs.srv import (
     CommandTOL,
     CommandBool,
     MessageInterval,
-)
-
-# STATE_QOS used for state topics, like ~/state, ~/mission/waypoints etc.
-STATE_QOS = QoSProfile(depth=5, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
-
-TARGET_QOS = QoSProfile(
-    depth=10,
-    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-    reliability=QoSReliabilityPolicy.RELIABLE,
 )
 
 
@@ -51,17 +43,39 @@ class DroneFollowerNode(Node):
 
         # <------ Publishers and Subscribers ------>
 
+        # Quality of Service policy used for state topics, like ~/state, ~/mission/waypoints etc.
+        state_qos = QoSProfile(depth=5, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        # Quality of Service policy used for position of the target
+        target_qos = QoSProfile(
+            depth=10,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+        )
+
         # publisher for set-point messages that are used to move the drone
-        self.target_pub = self.create_publisher(
+        self.drone_local_move_pub = self.create_publisher(
             PoseStamped, "/mavros/setpoint_position/local", 10
         )
         # sub for vehicle state
         self.state_sub = self.create_subscription(
-            State, "/mavros/state", self.state_callback, STATE_QOS
+            msg_type=State,
+            topic="/mavros/state",
+            callback=self.state_callback,
+            qos_profile=state_qos,
         )
         # sub for pose target.
         self.pose_target_sub = self.create_subscription(
-            PoseStamped, "/drone/next_drone_pose", self.pose_target_callback, TARGET_QOS
+            msg_type=PoseStamped,
+            topic="/drone/next_drone_pose",
+            callback=self.pose_target_callback,
+            qos_profile=target_qos,
+        )
+
+        self.pos_sub = self.create_subscription(
+            msg_type=PoseStamped,
+            topic="/mavros/local_position/pose",
+            callback=self.drone_local_pose_callback,
+            qos_profile=qos_profile_sensor_data,
         )
 
         # <------ Create clients ------>
@@ -86,6 +100,9 @@ class DroneFollowerNode(Node):
         self.in_air_start_time = None
         self.ready_for_takeoff = False
 
+        # Local pose of the drone
+        self.drone_local_pose = None
+
         # MavLink messages to request from the drone flight controller.
         # These are drone position, attitude etc. And are requested using
         # set_all_message_interval function which makes async calls to
@@ -101,6 +118,9 @@ class DroneFollowerNode(Node):
         # create timer to check flight duration every second.
         self.create_timer(1.0, self.check_flight_duration)
 
+    def drone_local_pose_callback(self, msg: PoseStamped):
+        self.drone_local_pose = msg
+
     def pose_target_callback(self, msg: PoseStamped):
         """
         Calculate the next pose of the drone using apriltag poses.
@@ -109,19 +129,33 @@ class DroneFollowerNode(Node):
             msg: Mean Pose of the detected apriltags relative to the drone. This pose data is in 'base_link' frame.
         """
 
-        if self.should_land:
+        if self.should_land or not self.in_air or self.drone_local_pose is None:
             return
 
-        msg.pose.position.x += 0.0
-        msg.pose.position.y += 0.0
-        # drone attitude to follow the target with in meters
-        msg.pose.position.z += 3.0
+        current_local_pose = self.drone_local_pose
 
-        if self.in_air:
-            self.get_logger().info(
-                f"moving to {msg.pose.position} with {msg.pose.orientation}"
-            )
-            self.target_pub.publish(msg)
+        # Create a new message to send to the drone by adding
+        # the relative position of the follow target to its local pose
+        target_msg = PoseStamped()
+        # keep the orientation of the drone same.
+        target_msg.pose.orientation = current_local_pose.pose.orientation
+
+        target_msg.pose.position.x = (
+            current_local_pose.pose.position.x + msg.pose.position.x
+        )
+
+        target_msg.pose.position.y = (
+            current_local_pose.pose.position.y + msg.pose.position.y
+        )
+
+        # follow the target 3 meter altitude
+        target_msg.pose.position.z = 3.0
+        target_msg.header.stamp = self.get_clock().now().to_msg()
+
+        self.get_logger().info(
+            f"Drone moving to {target_msg.pose.position} to follow the target."
+        )
+        self.drone_local_move_pub.publish(target_msg)
 
     def check_flight_duration(self):
         """
