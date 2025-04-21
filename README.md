@@ -20,6 +20,11 @@
 
 ## Installation Guide
 
+### No Docker Setup.
+For a more straight forward install you can use setup isaac apt repository and use the
+isaac packages without a docker container. [Isaac Apt Repository Setup](https://nvidia-isaac-ros.github.io/getting_started/isaac_apt_repository.html).
+
+
 ### 1. Set Up Docker
 Install Docker on your system by following these [instructions](https://docs.docker.com/get-docker/).
 
